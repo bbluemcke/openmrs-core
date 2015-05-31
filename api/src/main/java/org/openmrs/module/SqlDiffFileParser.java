@@ -1,15 +1,11 @@
 /**
- * The contents of this file are subject to the OpenMRS Public License
- * Version 1.0 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://license.openmrs.org
+ * This Source Code Form is subject to the terms of the Mozilla Public License,
+ * v. 2.0. If a copy of the MPL was not distributed with this file, You can
+ * obtain one at http://mozilla.org/MPL/2.0/. OpenMRS is also distributed under
+ * the terms of the Healthcare Disclaimer located at http://openmrs.org/license.
  *
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- *
- * Copyright (C) OpenMRS, LLC.  All Rights Reserved.
+ * Copyright (C) OpenMRS Inc. OpenMRS is a registered trademark and the OpenMRS
+ * graphic logo is a trademark of OpenMRS Inc.
  */
 package org.openmrs.module;
 
@@ -44,6 +40,8 @@ public class SqlDiffFileParser {
 	
 	private static Log log = LogFactory.getLog(SqlDiffFileParser.class);
 	
+	private static final String SQLDIFF_CHANGELOG_FILENAME = "sqldiff.xml";
+	
 	/**
 	 * Get the diff map. Return a sorted map<version, sql statements>
 	 *
@@ -69,22 +67,25 @@ public class SqlDiffFileParser {
 				throw new ModuleException("Unable to get jar file", module.getName(), e);
 			}
 			
-			ZipEntry diffEntry = jarfile.getEntry("sqldiff.xml");
-			
-			if (diffEntry == null) {
-				log.debug("No sqldiff.xml found for module: " + module.getName());
-				return map;
-			} else {
-				try {
-					diffStream = jarfile.getInputStream(diffEntry);
-				}
-				catch (IOException e) {
-					throw new ModuleException("Unable to get sql diff file stream", module.getName(), e);
+			diffStream = ModuleUtil.getResourceFromApi(jarfile, module.getModuleId(), module.getVersion(),
+			    SQLDIFF_CHANGELOG_FILENAME);
+			if (diffStream == null) {
+				// Try the old way. Loading from the root of the omod
+				ZipEntry diffEntry = jarfile.getEntry(SQLDIFF_CHANGELOG_FILENAME);
+				if (diffEntry == null) {
+					log.debug("No sqldiff.xml found for module: " + module.getName());
+					return map;
+				} else {
+					try {
+						diffStream = jarfile.getInputStream(diffEntry);
+					}
+					catch (IOException e) {
+						throw new ModuleException("Unable to get sql diff file stream", module.getName(), e);
+					}
 				}
 			}
 			
 			try {
-				
 				// turn the diff stream into an xml document
 				Document diffDoc = null;
 				try {
@@ -92,6 +93,7 @@ public class SqlDiffFileParser {
 					DocumentBuilder db = dbf.newDocumentBuilder();
 					db.setEntityResolver(new EntityResolver() {
 						
+						@Override
 						public InputSource resolveEntity(String publicId, String systemId) throws SAXException, IOException {
 							// When asked to resolve external entities (such as a DTD) we return an InputSource
 							// with no data at the end, causing the parser to ignore the DTD.

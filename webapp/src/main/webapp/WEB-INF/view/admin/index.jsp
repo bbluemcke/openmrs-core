@@ -3,7 +3,7 @@
 <openmrs:require privilege="View Administration Functions" otherwise="/login.htm" redirect="/admin/index.htm" />
 
 <openmrs:message var="pageTitle" code="admin.titlebar" scope="page"/>
-
+<openmrs:message var="pageTitle" code="admin.title" scope="page"/>
 <%@ include file="/WEB-INF/template/header.jsp" %>
 
 <style>
@@ -25,7 +25,7 @@
 	}
 </style>
 
-<h2><openmrs:message code="admin.title"/></h2>
+<h2><openmrs:message code="admin.header"/></h2>
 
 <table border="0" width="93%">
 	<tbody>
@@ -86,13 +86,6 @@
 				<div class="adminMenuList">
 					<h4><openmrs:message code="Obs.header"/></h4>
 						<%@ include file="observations/localHeader.jsp" %>
-				</div>
-			</openmrs:hasPrivilege>
-			
-			<openmrs:hasPrivilege privilege="View Orders,Manage Order Types">
-				<div class="adminMenuList">
-					<h4><openmrs:message code="Order.header"/></h4>
-						<%@ include file="orders/localHeader.jsp" %>
 				</div>
 			</openmrs:hasPrivilege>
 

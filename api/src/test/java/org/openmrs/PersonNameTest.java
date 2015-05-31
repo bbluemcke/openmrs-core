@@ -1,15 +1,11 @@
 /**
- * The contents of this file are subject to the OpenMRS Public License
- * Version 1.0 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://license.openmrs.org
+ * This Source Code Form is subject to the terms of the Mozilla Public License,
+ * v. 2.0. If a copy of the MPL was not distributed with this file, You can
+ * obtain one at http://mozilla.org/MPL/2.0/. OpenMRS is also distributed under
+ * the terms of the Healthcare Disclaimer located at http://openmrs.org/license.
  *
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- *
- * Copyright (C) OpenMRS, LLC.  All Rights Reserved.
+ * Copyright (C) OpenMRS Inc. OpenMRS is a registered trademark and the OpenMRS
+ * graphic logo is a trademark of OpenMRS Inc.
  */
 package org.openmrs;
 
@@ -464,6 +460,59 @@ public class PersonNameTest {
 		pn.setMiddleName("");
 		pn.setFamilyName("Jones");
 		Assert.assertEquals("Bob Jones", pn.getFullName());
+	}
+	
+	/**
+	 * @see {@link PersonName#getFullName()}
+	 */
+	@Test
+	@Verifies(value = "should Not Return Long If Person Name Format Is Short", method = "getFullName()")
+	public void getFullName_shouldNotReturnLongIfPersonNameFormatIsShort() throws Exception {
+		PersonName pn = new PersonName();
+		PersonName.setFormat(OpenmrsConstants.PERSON_NAME_FORMAT_LONG);
+		pn.setPrefix("Sr.");
+		pn.setGivenName("Taylor");
+		pn.setMiddleName("Bob");
+		pn.setFamilyNamePrefix("Wilson");
+		pn.setFamilyName("Mark");
+		pn.setFamilyName2("Jones");
+		pn.setFamilyNameSuffix("jr.");
+		pn.setDegree("3");
+		PersonName.setFormat(OpenmrsConstants.PERSON_NAME_FORMAT_SHORT);
+		Assert.assertEquals(pn.getFullName(), "Sr. Taylor Bob Mark");
+	}
+	
+	@Test
+	@Verifies(value = "should Not Return Short If Person Name Format Is Long", method = "getFullName()")
+	public void getFullName_shouldNotReturnShortIfPersonNameFormatIsLong() throws Exception {
+		PersonName pn = new PersonName();
+		PersonName.setFormat(OpenmrsConstants.PERSON_NAME_FORMAT_LONG);
+		pn.setPrefix("Sr.");
+		pn.setGivenName("Taylor");
+		pn.setMiddleName("Bob");
+		pn.setFamilyNamePrefix("Wilson");
+		pn.setFamilyName("Mark");
+		pn.setFamilyName2("Jones");
+		pn.setFamilyNameSuffix("jr.");
+		pn.setDegree("3");
+		Assert.assertEquals(pn.getFullName(), "Sr. Taylor Bob Wilson Mark Jones jr. 3");
+	}
+	
+	@Test
+	@Verifies(value = "should Return Short If Person Name Format Is null", method = "getFullName()")
+	public void getFullName_shouldReturnShortIfPersonNameFormatIsNull() throws Exception {
+		PersonName pn = new PersonName();
+		PersonName.setFormat(OpenmrsConstants.PERSON_NAME_FORMAT_LONG);
+		pn.setPrefix("Sr.");
+		pn.setGivenName("Taylor");
+		pn.setMiddleName("Bob");
+		pn.setFamilyNamePrefix("Wilson");
+		pn.setFamilyName("Mark");
+		pn.setFamilyName2("Jones");
+		pn.setFamilyNameSuffix("jr.");
+		pn.setDegree("3");
+		PersonName.setFormat("");
+		Assert.assertEquals(pn.getFullName(), "Sr. Taylor Bob Mark");
 	}
 	
 }

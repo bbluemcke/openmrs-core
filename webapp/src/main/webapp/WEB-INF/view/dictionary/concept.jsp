@@ -1,7 +1,7 @@
 <%@ include file="/WEB-INF/template/include.jsp"%>
 <openmrs:message var="pageTitle" code="Concept.view.titlebar" scope="page" htmlEscape="true" arguments="${command.concept.name}"/>
 <%@ include file="/WEB-INF/template/header.jsp"%>
-
+<openmrs:message var="pageTitle" code="Concept.view.title" scope="page" arguments="${command.concept.name}"/>
 <openmrs:require privilege="View Concepts" otherwise="/login.htm"
 	redirect="/dictionary/concept.htm" />
 
@@ -71,7 +71,7 @@
 
 <c:choose>
 	<c:when test="${command.concept.conceptId != null}">
-		<h2><openmrs:message code="Concept.view.title" htmlEscape="true" arguments="${command.concept.name}" /></h2>
+		<h2><openmrs:message code="Concept.view.header" arguments="${command.concept.name}" /></h2>
 	</c:when>
 	<c:otherwise>
 		<h2><openmrs:message code="Concept.noConceptSelected" /></h2>
@@ -206,17 +206,9 @@
 			<tr id="setOptions">
 				<th valign="top"><openmrs:message code="Concept.conceptSets"/></th>
 				<td valign="top">
-					<c:if test="${fn:length(command.concept.conceptSets) == 0}"><openmrs:message code="Concept.conceptSets.empty"/></c:if>
-					<c:forEach items="${command.concept.conceptSets}" var="set">
-						<c:if test="${!set.concept.retired}">
-							<a href="concept.htm?conceptId=${set.concept.conceptId}"><openmrs:format concept="${set.concept}"/> (${set.concept.conceptId})</a><br/>
-						</c:if>
-					</c:forEach>
-					<c:forEach items="${command.concept.conceptSets}" var="set">
-						<c:if test="${set.concept.retired}">
-							<a href="concept.htm?conceptId=${set.concept.conceptId}" class="retired">
-								<openmrs:format concept="${set.concept}"/> (${set.concept.conceptId})</a><br/>
-						</c:if>
+					<c:if test="${fn:length(command.concept.setMembers) == 0}"><openmrs:message code="Concept.conceptSets.empty"/></c:if>
+					<c:forEach items="${command.concept.setMembers}" var="setMember">
+						<a href="concept.htm?conceptId=${setMember.conceptId}" <c:if test="${setMember.retired}">class="retired"</c:if>><openmrs:format concept="${setMember}"/> (${setMember.conceptId})</a><br/>
 					</c:forEach>
 				</td>
 			</tr>
@@ -289,13 +281,15 @@
 							</td>
 						</tr>
 						<tr>
-							<th><openmrs:message code="command.concept.displayPrecision"/></th>
-							<td colspan="2">
-								<spring:bind path="command.concept.displayPrecision">
-									<input type="text" name="${status.expression}" value="<c:out value="${status.value}" />" class="mediumWidth" />
-									<c:if test="${status.errorMessage != ''}"><span class="error">${status.errorMessage}</span></c:if>
-								</spring:bind>
-							</td>
+							<c:if test="${command.concept.precise}">
+								<th><openmrs:message code="ConceptNumeric.displayPrecision"/></th>
+								<td colspan="2">
+									<spring:bind path="command.concept.displayPrecision">
+										<c:out value="${status.value}" />
+										<c:if test="${status.errorMessage != ''}"><span class="error">${status.errorMessage}</span></c:if>
+									</spring:bind>
+								</td>
+							</c:if>
 						</tr>
 					</table>
 				</td>
@@ -371,10 +365,10 @@
 							<c:forEach var="drug" items="${command.conceptDrugList}">
 								<c:choose>
 									<c:when test="${not empty drug.dosageForm}">
-										<li class="<c:if test="${drug.retired}">retired </c:if>"><c:out value="${drug.name}" /> <c:out value="${drug.doseStrength}" /> <c:out value="${drug.units}" /> <c:out value="${drug.dosageForm.name}" /></li>
+										<li class="<c:if test="${drug.retired}">retired </c:if>"><c:out value="${drug.name}" /> <c:out value="${drug.strength}" /> <c:out value="${drug.dosageForm.name}" /></li>
 									</c:when>
 									<c:otherwise>
-										<li class="<c:if test="${drug.retired}">retired </c:if>"><c:out value="${drug.name}" /> <c:out value="${drug.doseStrength}" /> <c:out value="${drug.units}" /></li>
+										<li class="<c:if test="${drug.retired}">retired </c:if>"><c:out value="${drug.name}" /> <c:out value="${drug.strength}" /></li>
 									</c:otherwise>
 								</c:choose>
 							</c:forEach>

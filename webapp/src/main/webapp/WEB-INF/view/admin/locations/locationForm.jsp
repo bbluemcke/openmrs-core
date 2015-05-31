@@ -1,7 +1,7 @@
 <%@ include file="/WEB-INF/template/include.jsp" %>
 
 <openmrs:require privilege="Manage Locations" otherwise="/login.htm" redirect="/admin/locations/location.form" />
-
+<openmrs:message var="pageTitle" code="location.title" scope="page"/>
 <%@ include file="/WEB-INF/template/header.jsp" %>
 <%@ include file="localHeader.jsp" %>
 
@@ -17,7 +17,7 @@
 				<c:out value="${location.retiredBy.personName}" />
 				<openmrs:formatDate date="${location.dateRetired}" type="medium" />
 				-
-				${location.retireReason}
+				<c:out value="${location.retireReason}"/>
 				<input type="submit" value='<openmrs:message code="Location.unretireLocation"/>' name="unretireLocation"/>
 			</div>
 		</div>
@@ -25,13 +25,7 @@
 </c:if>
 
 <spring:hasBindErrors name="location">
-	<openmrs:message htmlEscape="false" code="fix.error"/>
-	<div class="error">
-		<c:forEach items="${errors.globalErrors}" var="error">
-			<openmrs:message code="${error.defaultMessage}" text="${error.defaultMessage}"/><br/><!-- ${error} -->
-		</c:forEach>
-	</div>
-	<br />
+    <openmrs_tag:errorNotify errors="${errors}" />
 </spring:hasBindErrors>
 <form method="post">
 <fieldset>
@@ -40,7 +34,7 @@
 			<th><openmrs:message code="general.name"/><span class="required">*</span></th>
 			<td colspan="5">
 				<spring:bind path="location.name">
-					<input type="text" name="name" value='<c:out value="${status.value}"/>' size="35" />
+					<input type="text" name="name" value="${status.value}" size="35" />
 					<c:if test="${status.errorMessage != ''}"><span class="error">${status.errorMessage}</span></c:if>
 				</spring:bind>
 			</td>
@@ -81,7 +75,9 @@
 			</c:if>
 		</spring:bind>
 		<c:forEach var="attrType" items="${ attributeTypes }">
-			<openmrs_tag:attributesForType attributeType="${ attrType }" customizable="${ location }" formFieldNamePrefix="attribute.${ attrType.id }"/>
+		    <c:if test="${ !attrType.retired }">
+			    <openmrs_tag:attributesForType attributeType="${ attrType }" customizable="${ location }" formFieldNamePrefix="attribute.${ attrType.id }"/>
+            </c:if>
 		</c:forEach>
 		<tr>
 			<th valign="top"><openmrs:message code="Location.tags"/></th>

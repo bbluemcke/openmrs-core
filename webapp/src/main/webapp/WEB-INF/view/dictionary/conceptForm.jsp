@@ -4,7 +4,16 @@
 
 <c:choose>
 	<c:when test="${command.concept.conceptId != null}">
-		<openmrs:message var="pageTitle" code="Concept.edit.titlebar" scope="page" htmlEscape="true" arguments="${command.concept.name}"/>
+		<openmrs:message var="pageTitle" code="Concept.edit.title" scope="page" arguments="${command.concept.name}"/>
+  	</c:when>
+  	<c:otherwise>
+  		<openmrs:message var="pageTitle" code="Concept.creatingNewConcept.title" scope="page"/>
+  	</c:otherwise>
+  </c:choose>
+  
+ <c:choose>
+  	<c:when test="${command.concept.conceptId != null}">
+  		<openmrs:message var="pageTitle" code="Concept.edit.titlebar" scope="page" arguments="${command.concept.name}"/>
 	</c:when>
 	<c:otherwise>
 		<openmrs:message var="pageTitle" code="Concept.creatingNewConcept.titlebar" scope="page"/>
@@ -88,7 +97,9 @@
 	}
 	
 	function searchForConcepts() {
-		DWRConceptService.findBatchOfConcepts($j('#similarConceptsStart input').val(), false, null, null, null, null, null, 3, displayConcepts);
+		// get the selected locale
+		var locale = $j('.selectedTab').attr('id').substring(0, 2);
+		DWRConceptService.findBatchOfConcepts($j('#namesByLocale\\[' + locale + '\\]\\.name').val(), false, null, null, null, null, null, 4, displayConcepts);
 	}
 	
 	function displayConcepts(concepts) {
@@ -96,9 +107,10 @@
 		var conceptExists = false;
 		if(typeof(concepts[0]) !== 'string') { // check returned array not a message - indicates no results
 			var conceptsSize = concepts.length;
-			var theInput = $j.trim($j('#similarConceptsStart input').val().toLowerCase());
+			var locale = $j('.selectedTab').attr('id').substring(0, 2);
+			var theInput = $j.trim($j('#namesByLocale\\[' + locale + '\\]\\.name').val().toLowerCase());
 			aString = "| ";
-			$j.each(concepts, function(index, value) {
+			$j.each(concepts.slice(0,3), function(index, value) {
 				var theName = value.name.toString().toLowerCase();
 				var theId = value.conceptId.toString();
 				if(theName === theInput) {
@@ -111,8 +123,13 @@
 				aString += "</a>";
 				aString += " | ";
 			});
+			if (concepts[3]) {
+				aString += "..."
+			}
+			$j("#suggestions").text("<openmrs:message code="Concept.suggestions" />");
 		} else {
 			$j("#similarConcepts").text("");
+			$j("#suggestions").text("");
 		}
 		if(conceptExists) {
 			$j('#similarConceptsStart #duplicateConceptError').show();
@@ -187,13 +204,7 @@
 </c:if>
 
 <spring:hasBindErrors name="command">
-	<openmrs:message htmlEscape="false" code="fix.error"/>
-	<div class="error">
-		<c:forEach items="${errors.allErrors}" var="error">
-			<openmrs:message code="${error.code}" text="${error.code}"/><br/><!-- ${error} -->
-		</c:forEach>
-	</div>
-	<br />
+    <openmrs_tag:errorNotify errors="${errors}" />
 </spring:hasBindErrors>
 
 <c:if test="${command.concept.conceptId != null}">
@@ -271,7 +282,7 @@
 		</c:forEach>
 	</tr>
 	<tr>
-		<th valign="top"></th>
+		<th valign="top" id="suggestions"></th>
 		<td>
 			<div id="similarConcepts"></div>
 		</td>
@@ -582,7 +593,7 @@
 					<td colspan="2">
 						<spring:bind path="command.precise">
 							<input type="hidden" name="_${status.expression}" value=""/>
-							<input type="checkbox" name="${status.expression}" <c:if test="${status.value}">checked="checked"</c:if>/>
+							<input type="checkbox" id="allow_decimal_checkbox" name="${status.expression}" <c:if test="${status.value}">checked="checked"</c:if>/>
 							<c:if test="${status.errorMessage != ''}"><span class="error">${status.errorMessage}</span></c:if>
 						</spring:bind>
 					</td>
@@ -591,7 +602,7 @@
 					<th><openmrs:message code="ConceptNumeric.displayPrecision"/></th>
 					<td colspan="2">
 						<spring:bind path="command.displayPrecision">
-							<input type="text" name="${status.expression}" value="<c:out value="${status.value}" />" class="mediumWidth" />
+							<input type="text" id="display_precision_textbox" name="${status.expression}" value="<c:out value="${status.value}" />" class="mediumWidth" />
 							<c:if test="${status.errorMessage != ''}"><span class="error">${status.errorMessage}</span></c:if>
 						</spring:bind>
 					</td>
@@ -942,6 +953,10 @@ $j(document).ready( function() {
 			$j("#cancelOrDone").val('<openmrs:message code="general.cancel"/>');
 		}
 	});
+	
+	if(!$j("#allow_decimal_checkbox").is(':checked')) {
+		$j("#display_precision_textbox").prop( "disabled", true );
+	}
 });
 
 function createNewTerm(){

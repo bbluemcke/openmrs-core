@@ -1,15 +1,11 @@
 /**
- * The contents of this file are subject to the OpenMRS Public License
- * Version 1.0 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://license.openmrs.org
+ * This Source Code Form is subject to the terms of the Mozilla Public License,
+ * v. 2.0. If a copy of the MPL was not distributed with this file, You can
+ * obtain one at http://mozilla.org/MPL/2.0/. OpenMRS is also distributed under
+ * the terms of the Healthcare Disclaimer located at http://openmrs.org/license.
  *
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- *
- * Copyright (C) OpenMRS, LLC.  All Rights Reserved.
+ * Copyright (C) OpenMRS Inc. OpenMRS is a registered trademark and the OpenMRS
+ * graphic logo is a trademark of OpenMRS Inc.
  */
 package org.openmrs.module;
 
@@ -36,6 +32,8 @@ import java.util.zip.ZipEntry;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.openmrs.GlobalProperty;
@@ -125,6 +123,9 @@ public class ModuleFileParser {
 		}
 	}
 	
+	ModuleFileParser() {
+	}
+	
 	/**
 	 * Get the module
 	 *
@@ -168,6 +169,7 @@ public class ModuleFileParser {
 				DocumentBuilder db = dbf.newDocumentBuilder();
 				db.setEntityResolver(new EntityResolver() {
 					
+					@Override
 					public InputSource resolveEntity(String publicId, String systemId) throws SAXException, IOException {
 						// When asked to resolve external entities (such as a
 						// DTD) we return an InputSource
@@ -239,33 +241,6 @@ public class ModuleFileParser {
 				        name);
 			}
 			
-			// look for log4j.xml in the root of the module
-			Document log4jDoc = null;
-			try {
-				ZipEntry log4j = jarfile.getEntry("log4j.xml");
-				if (log4j != null) {
-					InputStream log4jStream = jarfile.getInputStream(log4j);
-					
-					DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
-					DocumentBuilder db = dbf.newDocumentBuilder();
-					db.setEntityResolver(new EntityResolver() {
-						
-						public InputSource resolveEntity(String publicId, String systemId) throws SAXException, IOException {
-							// When asked to resolve external entities (such as
-							// a
-							// DTD) we return an InputSource
-							// with no data at the end, causing the parser to
-							// ignore
-							// the DTD.
-							return new InputSource(new StringReader(""));
-						}
-					});
-					
-					log4jDoc = db.parse(log4jStream);
-				}
-			}
-			catch (Exception e) {}
-			
 			// create the module object
 			module = new Module(name, moduleId, packageName, author, desc, version);
 			
@@ -277,6 +252,7 @@ public class ModuleFileParser {
 			module.setUpdateURL(getElement(rootNode, configVersion, "updateURL").trim());
 			module.setRequiredModulesMap(getRequiredModules(rootNode, configVersion));
 			module.setAwareOfModulesMap(getAwareOfModules(rootNode, configVersion));
+			module.setStartBeforeModulesMap(getStartBeforeModules(rootNode, configVersion));
 			
 			module.setAdvicePoints(getAdvice(rootNode, configVersion, module));
 			module.setExtensionNames(getExtensions(rootNode, configVersion));
@@ -284,18 +260,18 @@ public class ModuleFileParser {
 			module.setPrivileges(getPrivileges(rootNode, configVersion));
 			module.setGlobalProperties(getGlobalProperties(rootNode, configVersion));
 			
-			module.setMessages(getMessages(rootNode, configVersion, jarfile));
+			module.setMessages(getMessages(rootNode, configVersion, jarfile, moduleId, version));
 			
 			module.setMappingFiles(getMappingFiles(rootNode, configVersion, jarfile));
 			module.setPackagesWithMappedClasses(getPackagesWithMappedClasses(rootNode, configVersion));
 			
 			module.setConfig(configDoc);
 			
-			module.setLog4j(log4jDoc);
-			
 			module.setMandatory(getMandatory(rootNode, configVersion, jarfile));
 			
 			module.setFile(moduleFile);
+			
+			module.setConditionalResources(getConditionalResources(rootNode));
 		}
 		finally {
 			try {
@@ -315,6 +291,88 @@ public class ModuleFileParser {
 		}
 		
 		return module;
+	}
+	
+	/**
+	 * Parses conditionalResources tag.
+	 * @param rootNode
+	 * @return
+	 *
+	 * @should parse openmrsVersion and modules
+	 * @should parse conditionalResource with whitespace
+	 * @should throw exception if multiple conditionalResources tags found
+	 * @should throw exception if conditionalResources contains invalid tag
+	 * @should throw exception if path is blank
+	 */
+	List<ModuleConditionalResource> getConditionalResources(Element rootNode) {
+		List<ModuleConditionalResource> conditionalResources = new ArrayList<ModuleConditionalResource>();
+		
+		NodeList parentConditionalResources = rootNode.getElementsByTagName("conditionalResources");
+		
+		if (parentConditionalResources.getLength() == 0) {
+			return new ArrayList<ModuleConditionalResource>();
+		} else if (parentConditionalResources.getLength() > 1) {
+			throw new IllegalArgumentException("Found multiple conditionalResources tags. There can be only one.");
+		}
+		
+		NodeList conditionalResourcesNode = parentConditionalResources.item(0).getChildNodes();
+		
+		for (int i = 0; i < conditionalResourcesNode.getLength(); i++) {
+			Node conditionalResourceNode = conditionalResourcesNode.item(i);
+			
+			if ("#text".equals(conditionalResourceNode.getNodeName())) {
+				continue; //ignore text and whitespace in particular
+			}
+			
+			if (!"conditionalResource".equals(conditionalResourceNode.getNodeName())) {
+				throw new IllegalArgumentException("Found the " + conditionalResourceNode.getNodeName()
+				        + " node under conditionalResources. Only conditionalResource is allowed.");
+			}
+			
+			NodeList resourceElements = conditionalResourceNode.getChildNodes();
+			
+			ModuleConditionalResource resource = new ModuleConditionalResource();
+			conditionalResources.add(resource);
+			
+			for (int j = 0; j < resourceElements.getLength(); j++) {
+				Node resourceElement = resourceElements.item(j);
+				
+				if ("path".equals(resourceElement.getNodeName())) {
+					if (StringUtils.isBlank(resourceElement.getTextContent())) {
+						throw new IllegalArgumentException("The path of a conditional resource must not be blank");
+					}
+					resource.setPath(resourceElement.getTextContent());
+				} else if ("openmrsVersion".equals(resourceElement.getNodeName())) {
+					if (StringUtils.isBlank(resource.getOpenmrsPlatformVersion())) {
+						resource.setOpenmrsPlatformVersion(resourceElement.getTextContent());
+					}
+				} else if ("openmrsPlatformVersion".equals(resourceElement.getNodeName())) {
+					resource.setOpenmrsPlatformVersion(resourceElement.getTextContent());
+				} else if ("modules".equals(resourceElement.getNodeName())) {
+					NodeList modulesNode = resourceElement.getChildNodes();
+					for (int k = 0; k < modulesNode.getLength(); k++) {
+						Node moduleNode = modulesNode.item(k);
+						if ("module".equals(moduleNode.getNodeName())) {
+							NodeList moduleElements = moduleNode.getChildNodes();
+							
+							ModuleConditionalResource.ModuleAndVersion module = new ModuleConditionalResource.ModuleAndVersion();
+							resource.getModules().add(module);
+							for (int m = 0; m < moduleElements.getLength(); m++) {
+								Node moduleElement = moduleElements.item(m);
+								
+								if ("moduleId".equals(moduleElement.getNodeName())) {
+									module.setModuleId(moduleElement.getTextContent());
+								} else if ("version".equals(moduleElement.getNodeName())) {
+									module.setVersion(moduleElement.getTextContent());
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		
+		return conditionalResources;
 	}
 	
 	/**
@@ -341,58 +399,43 @@ public class ModuleFileParser {
 	 * @since 1.5
 	 */
 	private Map<String, String> getRequiredModules(Element root, String version) {
-		NodeList requiredModulesParents = root.getElementsByTagName("require_modules");
-		
-		Map<String, String> packageNamesToVersion = new HashMap<String, String>();
-		
-		// TODO test require_modules section
-		if (requiredModulesParents.getLength() > 0) {
-			Node requiredModulesParent = requiredModulesParents.item(0);
-			
-			NodeList requiredModules = requiredModulesParent.getChildNodes();
-			
-			int i = 0;
-			while (i < requiredModules.getLength()) {
-				Node n = requiredModules.item(i);
-				if (n != null && "require_module".equals(n.getNodeName())) {
-					NamedNodeMap attributes = n.getAttributes();
-					Node versionNode = attributes.getNamedItem("version");
-					String reqVersion = versionNode == null ? null : versionNode.getNodeValue();
-					packageNamesToVersion.put(n.getTextContent().trim(), reqVersion);
-				}
-				i++;
-			}
-		}
-		return packageNamesToVersion;
+		return getModuleToVersionMap("require_modules", "require_module", root);
 	}
 	
 	/**
 	 * load in list of modules we are aware of.
 	 *
 	 * @param root element in the xml doc object
-	 * @param version of the config file
 	 * @return map from module package name to aware of version
 	 * @since 1.9
 	 */
 	private Map<String, String> getAwareOfModules(Element root, String version) {
-		NodeList awareOfModulesParents = root.getElementsByTagName("aware_of_modules");
+		return getModuleToVersionMap("aware_of_modules", "aware_of_module", root);
+	}
+	
+	private Map<String, String> getStartBeforeModules(Element root, String version) {
+		return getModuleToVersionMap("start_before_modules", "module", root);
+	}
+	
+	private Map<String, String> getModuleToVersionMap(String elementParentName, String elementName, Element root) {
+		
+		NodeList modulesParents = root.getElementsByTagName(elementParentName);
 		
 		Map<String, String> packageNamesToVersion = new HashMap<String, String>();
 		
-		// TODO test aware_of_modules section
-		if (awareOfModulesParents.getLength() > 0) {
-			Node awareOfModulesParent = awareOfModulesParents.item(0);
+		if (modulesParents.getLength() > 0) {
+			Node modulesParent = modulesParents.item(0);
 			
-			NodeList awareOfModules = awareOfModulesParent.getChildNodes();
+			NodeList childModules = modulesParent.getChildNodes();
 			
 			int i = 0;
-			while (i < awareOfModules.getLength()) {
-				Node n = awareOfModules.item(i);
-				if (n != null && "aware_of_module".equals(n.getNodeName())) {
+			while (i < childModules.getLength()) {
+				Node n = childModules.item(i);
+				if (n != null && elementName.equals(n.getNodeName())) {
 					NamedNodeMap attributes = n.getAttributes();
 					Node versionNode = attributes.getNamedItem("version");
-					String awareOfVersion = versionNode == null ? null : versionNode.getNodeValue();
-					packageNamesToVersion.put(n.getTextContent().trim(), awareOfVersion);
+					String moduleVersion = versionNode == null ? null : versionNode.getNodeValue();
+					packageNamesToVersion.put(n.getTextContent().trim(), moduleVersion);
 				}
 				i++;
 			}
@@ -503,7 +546,8 @@ public class ModuleFileParser {
 	 * @param configVersion
 	 * @return
 	 */
-	private Map<String, Properties> getMessages(Element root, String configVersion, JarFile jarfile) {
+	private Map<String, Properties> getMessages(Element root, String configVersion, JarFile jarfile, String moduleId,
+	        String version) {
 		
 		Map<String, Properties> messages = new HashMap<String, Properties>();
 		
@@ -531,12 +575,16 @@ public class ModuleFileParser {
 				if (lang.length() > 0 && file.length() > 0) {
 					InputStream inStream = null;
 					try {
-						ZipEntry entry = jarfile.getEntry(file);
-						if (entry == null) {
-							throw new ModuleException(Context.getMessageSourceService().getMessage(
-							    "Module.error.noMessagePropsFile", new Object[] { file, lang }, Context.getLocale()));
+						inStream = ModuleUtil.getResourceFromApi(jarfile, moduleId, version, file);
+						if (inStream == null) {
+							// Try the old way. Loading from the root of the omod
+							ZipEntry entry = jarfile.getEntry(file);
+							if (entry == null) {
+								throw new ModuleException(Context.getMessageSourceService().getMessage(
+								    "Module.error.noMessagePropsFile", new Object[] { file, lang }, Context.getLocale()));
+							}
+							inStream = jarfile.getInputStream(entry);
 						}
-						inStream = jarfile.getInputStream(entry);
 						Properties props = new Properties();
 						OpenmrsUtil.loadProperties(props, inStream);
 						messages.put(lang, props);
@@ -545,15 +593,7 @@ public class ModuleFileParser {
 						log.warn("Unable to load properties: " + file);
 					}
 					finally {
-						if (inStream != null) {
-							try {
-								inStream.close();
-							}
-							catch (IOException io) {
-								log.error("Error while closing property input stream for module: "
-								        + moduleFile.getAbsolutePath(), io);
-							}
-						}
+						IOUtils.closeQuietly(inStream);
 					}
 				} else {
 					log.warn("'lang' and 'file' are required for extensions. Given '" + lang + "' and '" + file + "'");
